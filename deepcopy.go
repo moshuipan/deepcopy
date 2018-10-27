@@ -8,18 +8,18 @@ package deepcopy
 
 import (
 	"reflect"
-	"time"
+	"unsafe"
 )
 
 // Interface for delegating copy process to type
-type Interface interface {
-	DeepCopy() interface{}
-}
+// type Interface interface {
+// 	DeepCopy() interface{}
+// }
 
 // Iface is an alias to Copy; this exists for backwards compatibility reasons.
-func Iface(iface interface{}) interface{} {
-	return Copy(iface)
-}
+// func Iface(iface interface{}) interface{} {
+// 	return Copy(iface)
+// }
 
 // Copy creates a deep copy of whatever is passed to it and returns the copy
 // in an interface{}.  The returned value will need to be asserted to the
@@ -46,12 +46,12 @@ func Copy(src interface{}) interface{} {
 // limited support for what it can handle. Add as needed.
 func copyRecursive(original, cpy reflect.Value) {
 	// check for implement deepcopy.Interface
-	if original.CanInterface() {
-		if copier, ok := original.Interface().(Interface); ok {
-			cpy.Set(reflect.ValueOf(copier.DeepCopy()))
-			return
-		}
-	}
+	// if original.CanInterface() {
+	// 	if copier, ok := original.Interface().(Interface); ok {
+	// 		setValue(spy,reflect.ValueOf(copier.DeepCopy()))
+	// 		return
+	// 	}
+	// }
 
 	// handle according to original's Kind
 	switch original.Kind() {
@@ -63,7 +63,7 @@ func copyRecursive(original, cpy reflect.Value) {
 		if !originalValue.IsValid() {
 			return
 		}
-		cpy.Set(reflect.New(originalValue.Type()))
+		setValue(&cpy, reflect.New(originalValue.Type()))
 		copyRecursive(originalValue, cpy.Elem())
 
 	case reflect.Interface:
@@ -77,22 +77,22 @@ func copyRecursive(original, cpy reflect.Value) {
 		// Get the value by calling Elem().
 		copyValue := reflect.New(originalValue.Type()).Elem()
 		copyRecursive(originalValue, copyValue)
-		cpy.Set(copyValue)
+		setValue(&cpy, copyValue)
 
 	case reflect.Struct:
-		t, ok := original.Interface().(time.Time)
-		if ok {
-			cpy.Set(reflect.ValueOf(t))
-			return
-		}
+		// t, ok := original.Interface().(time.Time)
+		// if ok {
+		// 	setValue(cpy, reflect.ValueOf(t))
+		// 	return
+		// }
 		// Go through each field of the struct and copy it.
 		for i := 0; i < original.NumField(); i++ {
 			// The Type's StructField for a given field is checked to see if StructField.PkgPath
 			// is set to determine if the field is exported or not because CanSet() returns false
 			// for settable fields.  I'm not sure why.  -mohae
-			if original.Type().Field(i).PkgPath != "" {
-				continue
-			}
+			// if original.Type().Field(i).PkgPath != "" {
+			// 	continue
+			// }
 			copyRecursive(original.Field(i), cpy.Field(i))
 		}
 
@@ -101,7 +101,7 @@ func copyRecursive(original, cpy reflect.Value) {
 			return
 		}
 		// Make a new slice and copy each element.
-		cpy.Set(reflect.MakeSlice(original.Type(), original.Len(), original.Cap()))
+		setValue(&cpy, reflect.MakeSlice(original.Type(), original.Len(), original.Cap()))
 		for i := 0; i < original.Len(); i++ {
 			copyRecursive(original.Index(i), cpy.Index(i))
 		}
@@ -110,8 +110,11 @@ func copyRecursive(original, cpy reflect.Value) {
 		if original.IsNil() {
 			return
 		}
-		cpy.Set(reflect.MakeMap(original.Type()))
+		setValue(&cpy, reflect.MakeMap(original.Type()))
 		for _, key := range original.MapKeys() {
+			// copyKey := reflect.New(key.Type()).Elem()
+			// setValue(&copyKey, key)
+			// TODO: support unexported map field,its a difficult job
 			originalValue := original.MapIndex(key)
 			copyValue := reflect.New(originalValue.Type()).Elem()
 			copyRecursive(originalValue, copyValue)
@@ -120,6 +123,87 @@ func copyRecursive(original, cpy reflect.Value) {
 		}
 
 	default:
-		cpy.Set(original)
+		setValue(&cpy, original)
 	}
 }
+
+func setValue(dsc *reflect.Value, value reflect.Value) {
+	if canExport(dsc) && canExport(&value) {
+		dsc.Set(value)
+	} else {
+		dscV := (*Value)(unsafe.Pointer(dsc))
+		v := (*Value)(unsafe.Pointer(&value))
+		switch dsc.Kind() {
+		case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+			reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32,
+			reflect.Uint64, reflect.Uintptr, reflect.Float32,
+			reflect.Float64, reflect.Complex64, reflect.Complex128:
+			*(*unsafe.Pointer)(dscV.ptr) = *(*unsafe.Pointer)(v.ptr)
+		case reflect.Slice:
+			ds := (*sliceHeader)(dscV.ptr)
+			vs := (*sliceHeader)(v.ptr)
+			ds.Len = vs.Len
+			ds.Cap = vs.Cap
+			ds.Data = vs.Data
+		default:
+			dscV.ptr = v.ptr
+		}
+		dscV.typ = v.typ
+		dscV.flag = v.flag
+		// flag := dscV.flag
+		// dscV.flag = (dscV.flag & 0x9f) | 1<<8
+		// v.flag = (dscV.flag & 0x9f) | 1<<8
+		// dsc.Set(value)
+		// dscV.flag = flag
+	}
+}
+
+// TODO: support unexported map field
+// func setMapIndex(dsc *reflect.Value, key, value reflect.Value) {
+// 	if canExport(dsc) && canExport(&value) && canExport(&key) {
+// 		dsc.SetMapIndex(key, value)
+// 	} else {
+// 		dscV := (*Value)(unsafe.Pointer(dsc))
+// 		v := (*Value)(unsafe.Pointer(&value))
+
+// 		dscV.ptr = v.ptr
+// 		dscV.typ = v.typ
+// 		dscV.flag = v.flag
+// 	}
+// }
+
+func canExport(x *reflect.Value) bool {
+	v := (*Value)(unsafe.Pointer(x))
+	return v.flag&flagRO == 0
+}
+func convertValue(value *reflect.Value) *Value {
+	return (*Value)(unsafe.Pointer(value))
+}
+
+type Value struct {
+	typ  unsafe.Pointer
+	ptr  unsafe.Pointer
+	flag uintptr
+}
+type sliceHeader struct {
+	Data unsafe.Pointer
+	Len  int
+	Cap  int
+}
+
+type emptyInterface struct {
+	typ  *unsafe.Pointer
+	word unsafe.Pointer
+}
+
+const (
+	flagKindWidth           = 5 // there are 27 kinds
+	flagKindMask    uintptr = 1<<flagKindWidth - 1
+	flagStickyRO    uintptr = 1 << 5
+	flagEmbedRO     uintptr = 1 << 6
+	flagIndir       uintptr = 1 << 7
+	flagAddr        uintptr = 1 << 8
+	flagMethod      uintptr = 1 << 9
+	flagMethodShift         = 10
+	flagRO          uintptr = flagStickyRO | flagEmbedRO
+)
