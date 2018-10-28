@@ -832,19 +832,19 @@ func TestUnexportedFields(t *testing.T) {
 		t.Errorf("Unexported.A: got %s want %s", cpy.A, u.A)
 	}
 	if u.B != cpy.B {
-		t.Errorf("Unexported.A: got %d want %d", cpy.B, u.B)
+		t.Errorf("Unexported.B: got %d want %d", cpy.B, u.B)
 	}
-	if cpy.aa != "" {
-		t.Errorf("Unexported.aa: unexported field should not be set, it was set to %s", cpy.aa)
+	if cpy.aa != "aa" {
+		t.Errorf("Unexported.aa: got %s want %s", cpy.aa, u.aa)
 	}
-	if cpy.bb != 0 {
-		t.Errorf("Unexported.bb: unexported field should not be set, it was set to %d", cpy.bb)
+	if cpy.bb != 42 {
+		t.Errorf("Unexported.bb: got %d want %d", cpy.bb, u.bb)
 	}
-	if cpy.cc != nil {
-		t.Errorf("Unexported.cc: unexported field should not be set, it was set to %#v", cpy.cc)
+	if cpy.cc[0] != 1 || cpy.cc[1] != 2 || cpy.cc[2] != 3 {
+		t.Errorf("Unexported.cc: got %v want %v", cpy.cc, u.cc)
 	}
-	if cpy.dd != nil {
-		t.Errorf("Unexported.dd: unexported field should not be set, it was set to %#v", cpy.dd)
+	if v, ok := cpy.dd["hello"]; !ok || v != "bonjour" {
+		t.Errorf("Unexported.dd: got %s want %s", v, "bonjour")
 	}
 }
 
@@ -1080,31 +1080,5 @@ func TestIssue9(t *testing.T) {
 		if !found {
 			t.Errorf("expected key %v to exist in the copy; it didn't", k)
 		}
-	}
-}
-
-type I struct {
-	A string
-}
-
-func (i *I) DeepCopy() interface{} {
-	return &I{A: "custom copy"}
-}
-
-type NestI struct {
-	I *I
-}
-
-func TestInterface(t *testing.T) {
-	i := &I{A: "A"}
-	copied := Copy(i).(*I)
-	if copied.A != "custom copy" {
-		t.Errorf("expected value %v, but it's %v", "custom copy", copied.A)
-	}
-	// check for nesting values
-	ni := &NestI{I: &I{A: "A"}}
-	copiedNest := Copy(ni).(*NestI)
-	if copiedNest.I.A != "custom copy" {
-		t.Errorf("expected value %v, but it's %v", "custom copy", copiedNest.I.A)
 	}
 }
