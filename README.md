@@ -8,7 +8,7 @@ DeepCopy makes deep copies of things: unexported field values are not copied.
     cpy := deepcopy.Copy(orig)
 
 ## unexported field 
-- [x] slice
-- [x] map
-- [x] struct
+- [x] ~~slice~~
+- [x] ~~map~~
+- [x] ~~struct~~
 - [ ] time(need a test)
