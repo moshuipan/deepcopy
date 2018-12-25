@@ -12,3 +12,5 @@ DeepCopy makes deep copies of things: unexported field values are not copied.
 - [x] ~~map~~
 - [x] ~~struct~~
 - [ ] time(need a test)
+- [ ] interface
+- [ ] chan

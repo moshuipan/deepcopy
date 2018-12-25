@@ -1082,3 +1082,18 @@ func TestIssue9(t *testing.T) {
 		}
 	}
 }
+
+type UnexportMethod struct {
+	a int
+	B int
+}
+
+func (t *UnexportMethod) changea() {
+	t.a *= t.a
+}
+func (t *UnexportMethod) Changeb() {
+	t.B *= t.B
+}
+func TestInterface(t *testing.T) {
+
+}

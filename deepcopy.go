@@ -1,4 +1,4 @@
-// deepcopy makes deep copies of things. A standard copy will copy the
+// Package deepcopy makes deep copies of things. A standard copy will copy the
 // pointers: deep copy copies the values pointed to.  Unexported field
 // values are not copied.
 //
@@ -8,7 +8,6 @@ package deepcopy
 
 import (
 	"reflect"
-	"unsafe"
 )
 
 // Interface for delegating copy process to type
@@ -82,7 +81,7 @@ func copyRecursive(original, cpy reflect.Value) {
 	case reflect.Struct:
 		// t, ok := original.Interface().(time.Time)
 		// if ok {
-		// 	setValue(cpy, reflect.ValueOf(t))
+		// 	setValue(&cpy, reflect.ValueOf(t))
 		// 	return
 		// }
 		// Go through each field of the struct and copy it.
@@ -118,116 +117,10 @@ func copyRecursive(original, cpy reflect.Value) {
 			copyKey := reflect.New(key.Type()).Elem()
 			// setValue(&copyKey, key)
 			copyRecursive(key, copyKey)
-			setMapIndex(&cpy, copyKey, copyValue)
+			setMapIndex(cpy, copyKey, copyValue)
 		}
 
 	default:
 		setValue(&cpy, original)
 	}
 }
-
-func setValue(dsc *reflect.Value, value reflect.Value) {
-	if canExport(dsc) && canExport(&value) {
-		dsc.Set(value)
-	} else {
-		dscV := convertValue(dsc)
-		v := convertValue(&value)
-		switch dsc.Kind() {
-		case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
-			reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32,
-			reflect.Uint64, reflect.Uintptr, reflect.Float32,
-			reflect.Float64, reflect.Complex64, reflect.Complex128:
-			*(*unsafe.Pointer)(dscV.ptr) = *(*unsafe.Pointer)(v.ptr)
-			dscV.typ = v.typ
-			dscV.flag = v.flag
-		case reflect.Slice:
-			ds := (*sliceHeader)(dscV.ptr)
-			vs := (*sliceHeader)(v.ptr)
-			(*ds) = (*vs)
-			dscV.typ = v.typ
-			dscV.flag = v.flag
-		case reflect.String:
-			*(*string)(dscV.ptr) = *(*string)(v.ptr)
-		case reflect.Map:
-			*(*unsafe.Pointer)(dscV.ptr) = v.ptr
-		default:
-			dscV.ptr = v.ptr
-			dscV.typ = v.typ
-			dscV.flag = v.flag
-		}
-		// flag := dscV.flag
-		// dscV.flag = (dscV.flag & 0x9f) | 1<<8
-		// v.flag = (dscV.flag & 0x9f) | 1<<8
-		// dsc.Set(value)
-		// dscV.flag = flag
-	}
-}
-
-// TODO: support unexported map field
-func setMapIndex(dsc *reflect.Value, key, value reflect.Value) {
-	if canExport(dsc) && canExport(&value) && canExport(&key) {
-		dsc.SetMapIndex(key, value)
-	} else {
-		dscV := (*Value)(unsafe.Pointer(dsc))
-		k := (*Value)(unsafe.Pointer(&key))
-		v := (*Value)(unsafe.Pointer(&value))
-		dFlag := dscV.flag
-		dscV.flag = dscV.flag & (^flagRO)
-		k.flag = k.flag & (^flagRO)
-		v.flag = v.flag & (^flagRO)
-		dsc.SetMapIndex(key, value)
-		dscV.flag = dFlag
-	}
-}
-
-func canExport(x *reflect.Value) bool {
-	v := (*Value)(unsafe.Pointer(x))
-	return v.flag&flagRO == 0
-}
-func convertValue(value *reflect.Value) *Value {
-	return (*Value)(unsafe.Pointer(value))
-}
-
-type Value struct {
-	typ  unsafe.Pointer
-	ptr  unsafe.Pointer
-	flag uintptr
-}
-type sliceHeader struct {
-	Data unsafe.Pointer
-	Len  int
-	Cap  int
-}
-
-// A header for a Go map.
-type hmap struct {
-	// Note: the format of the hmap is also encoded in cmd/compile/internal/gc/reflect.go.
-	// Make sure this stays in sync with the compiler's definition.
-	count     int // # live cells == size of map.  Must be first (used by len() builtin)
-	flags     uint8
-	B         uint8  // log_2 of # of buckets (can hold up to loadFactor * 2^B items)
-	noverflow uint16 // approximate number of overflow buckets; see incrnoverflow for details
-	hash0     uint32 // hash seed
-
-	buckets    unsafe.Pointer // array of 2^B Buckets. may be nil if count==0.
-	oldbuckets unsafe.Pointer // previous bucket array of half the size, non-nil only when growing
-	nevacuate  uintptr        // progress counter for evacuation (buckets less than this have been evacuated)
-
-	extra unsafe.Pointer // optional fields
-}
-type emptyInterface struct {
-	typ  *unsafe.Pointer
-	word unsafe.Pointer
-}
-
-const (
-	flagKindWidth           = 5 // there are 27 kinds
-	flagKindMask    uintptr = 1<<flagKindWidth - 1
-	flagStickyRO    uintptr = 1 << 5
-	flagEmbedRO     uintptr = 1 << 6
-	flagIndir       uintptr = 1 << 7
-	flagAddr        uintptr = 1 << 8
-	flagMethod      uintptr = 1 << 9
-	flagMethodShift         = 10
-	flagRO          uintptr = flagStickyRO | flagEmbedRO
-)
