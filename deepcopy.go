@@ -8,7 +8,13 @@ package deepcopy
 
 import (
 	"reflect"
+	"time"
 )
+
+func init() {
+	// initialize time.Local
+	_ = time.Local.String()
+}
 
 // Interface for delegating copy process to type
 // type Interface interface {

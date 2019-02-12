@@ -800,7 +800,7 @@ T:
 		t.Error("A.T: expected them to have different addresses, they didn't")
 		return
 	}
-	if AStruct.T != cpy.T {
+	if !reflect.DeepEqual(AStruct.T, cpy.T) {
 		t.Errorf("A.T: got %v, want %v", cpy.T, AStruct.T)
 	}
 }
@@ -887,7 +887,7 @@ func TestTimeCopy(t *testing.T) {
 			t.Errorf("%d: nanotime: got %v; want %v", i, c.UnixNano(), x.UnixNano())
 			continue
 		}
-		if x.Location() != c.Location() {
+		if !reflect.DeepEqual(x.Location(), c.Location()) {
 			t.Errorf("%d: location: got %q; want %q", i, c.Location(), x.Location())
 		}
 	}
