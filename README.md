@@ -5,12 +5,7 @@ deepCopy
 DeepCopy makes deep copies of things: unexported field values are not copied.
 
 ## Usage
-    cpy := deepcopy.Copy(orig)
-
-## unexported field 
-- [x] ~~slice~~
-- [x] ~~map~~
-- [x] ~~struct~~
-- [ ] time(need a test)
-- [ ] interface
-- [ ] chan
+    `cpy := deepcopy.Copy(orig)`
+## feature 
+- copy unexported field
+- implement `DeepCopy` function

@@ -17,9 +17,9 @@ func init() {
 }
 
 // Interface for delegating copy process to type
-// type Interface interface {
-// 	DeepCopy() interface{}
-// }
+type Interface interface {
+	DeepCopy() interface{}
+}
 
 // Iface is an alias to Copy; this exists for backwards compatibility reasons.
 // func Iface(iface interface{}) interface{} {
@@ -51,12 +51,13 @@ func Copy(src interface{}) interface{} {
 // limited support for what it can handle. Add as needed.
 func copyRecursive(original, cpy reflect.Value) {
 	// check for implement deepcopy.Interface
-	// if original.CanInterface() {
-	// 	if copier, ok := original.Interface().(Interface); ok {
-	// 		setValue(spy,reflect.ValueOf(copier.DeepCopy()))
-	// 		return
-	// 	}
-	// }
+	{
+		ori := convertValue(&original)
+		if copier, ok := valueInterface(*ori, false).(Interface); ok {
+			setValue(&cpy, reflect.ValueOf(copier.DeepCopy()))
+			return
+		}
+	}
 
 	// handle according to original's Kind
 	switch original.Kind() {

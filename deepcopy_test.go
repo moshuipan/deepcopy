@@ -1083,17 +1083,31 @@ func TestIssue9(t *testing.T) {
 	}
 }
 
-type UnexportMethod struct {
+type innerType struct {
+	t *time.Time
+}
+type unexportedCopy struct {
 	a int
-	B int
+	b innerType
 }
 
-func (t *UnexportMethod) changea() {
-	t.a *= t.a
+func (g innerType) DeepCopy() interface{} {
+	return innerType{
+		t: g.t,
+	}
 }
-func (t *UnexportMethod) Changeb() {
-	t.B *= t.B
-}
-func TestInterface(t *testing.T) {
-
+func TestCopyInterface(t *testing.T) {
+	now := time.Now()
+	z := unexportedCopy{
+		a: 1,
+		b: innerType{&now},
+	}
+	x := Copy(z).(unexportedCopy)
+	if !reflect.DeepEqual(x, z) {
+		t.Errorf("deepcopy error,got %v, want %v", x, z)
+		return
+	}
+	if x.b.t != z.b.t {
+		t.Errorf("deepcopy error,got %v, want %v", x, z)
+	}
 }
